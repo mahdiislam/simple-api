@@ -55,31 +55,8 @@ fn init_db(path: &str) -> rusqlite::Result<Connection> {
 /// get their count updated, new months are added.
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-async fn download_csv(client: &reqwest::Client) -> Result<String, BoxError> {
-    let response = client
-        .get(SOURCE_URL)
-        .send()
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("download request failed: {e}")))?;
-
-    let response = response
-        .error_for_status()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("download returned error status: {e}")))?;
-
-    let body = response
-        .text()
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("failed reading CSV body: {e}")))?;
-
-    if body.trim().is_empty() {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, "downloaded CSV is empty").into());
-    }
-
-    Ok(body)
-}
-
 async fn poll_once(client: &reqwest::Client, db: &Db) -> Result<usize, BoxError> {
-    let body = download_csv(client).await?;
+    let body = client.get(SOURCE_URL).send().await?.error_for_status()?.text().await?;
 
     let records: Vec<Record> = csv::Reader::from_reader(body.as_bytes())
         .deserialize()
